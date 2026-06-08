@@ -1,0 +1,757 @@
+/* ─── RESET ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ─── TOKENS ─────────────────────────────────────────────────────── */
+:root {
+  /* ── Microscope field — bacteria under glass ── */
+  --bg:             #030d1a;
+  --bg-mid:         #061830;
+
+  /* Cell shapes: lighter luminous interior + darker membrane border */
+  --cell-fill:      rgba(72, 148, 255, 0.14);
+  --cell-fill-2:    rgba(92, 164, 255, 0.22);
+  --cell-border:    rgba(2, 12, 52, 0.80);
+  --cell-border-hi: rgba(4, 18, 72, 0.90);
+  --cell-membrane:  rgba(1, 8, 38, 0.92);
+  --cell-hover:     rgba(88, 162, 255, 0.20);
+  --cell-active:    rgba(105, 175, 255, 0.28);
+  --cell-glow:      rgba(80, 158, 255, 0.09);
+
+  /* Labels & text */
+  --label:          rgba(98, 166, 252, 0.75);
+  --label-hi:       rgba(148, 205, 255, 0.95);
+  --label-dim:      rgba(52, 108, 212, 0.50);
+  --sep:            rgba(30, 75, 198, 0.38);
+
+  /* Editor text — bacteria cell rendering: light cytoplasm, dark membrane */
+  --text-fill:      #1e50c8;       /* lighter blue cytoplasm visible on dark bg  */
+  --text-stroke:    rgba(1, 8, 42, 0.90);      /* very dark membrane outline    */
+  --caret:          rgba(100, 198, 255, 0.92);
+  --placeholder:    rgba(38, 88, 195, 0.35);
+
+  /* Legacy variable names kept (used in inline styles & logic) */
+  --yellow:   rgba(95, 192, 255, 0.90);
+  --black:    rgba(1, 8, 42, 0.90);
+  --white:    rgba(72, 148, 255, 0.14);
+  --gray-1:   rgba(70, 145, 255, 0.18);
+  --gray-2:   rgba(90, 162, 255, 0.28);
+  --gray-3:   rgba(78, 148, 242, 0.68);
+  --gray-4:   rgba(112, 182, 255, 0.45);
+  --red:      rgba(85, 45, 208, 0.82);
+
+  --toolbar-h:    48px;
+  --statusbar-h:  28px;
+  --font-ui: "IBM Plex Sans", Helvetica, Arial, sans-serif;
+}
+
+/* ─── BASE ───────────────────────────────────────────────────────── */
+html, body {
+  height: 100%;
+  background:
+    radial-gradient(circle at 18% 25%, rgba(20, 68, 195, 0.06) 0%, transparent 22%),
+    radial-gradient(circle at 80% 70%, rgba(28, 90, 205, 0.05) 0%, transparent 20%),
+    radial-gradient(circle at 54% 88%, rgba(14, 52, 162, 0.04) 0%, transparent 18%),
+    radial-gradient(ellipse at 50% 42%, var(--bg-mid) 0%, var(--bg) 100%);
+  color: var(--label);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ─── LAYOUT ─────────────────────────────────────────────────────── */
+#app {
+  display: grid;
+  grid-template-rows: var(--toolbar-h) 1fr var(--statusbar-h);
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* ─── TOOLBAR ────────────────────────────────────────────────────── */
+#toolbar {
+  position: relative;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(55, 125, 255, 0.10);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: var(--label);
+  border-bottom: 1px solid var(--cell-border);
+  box-shadow: inset 0 0 20px rgba(80, 158, 255, 0.06), 0 1px 0 rgba(1, 8, 42, 0.55);
+  padding: 0;
+  user-select: none;
+  overflow: visible;
+}
+
+.toolbar-brand {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  height: 100%;
+  border-right: 1px solid var(--cell-border);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label-hi);
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: none;
+}
+
+.toolbar-sep {
+  width: 1px;
+  height: 24px;
+  background: var(--sep);
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+
+/* ── Select fields ─── */
+.tb-select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  flex-shrink: 0;
+}
+.tb-label {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--label-dim);
+  padding: 0 6px 0 10px;
+  white-space: nowrap;
+}
+.tb-select {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--label-hi);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0 22px 0 0;
+  cursor: pointer;
+  outline: none;
+  max-width: 160px;
+}
+.tb-select {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+.tb-select:hover { color: var(--label-hi); }
+.tb-select option { background: #060f28; color: var(--label-hi); }
+
+.tb-dropdown {
+  position: relative;
+  min-width: 140px;
+}
+
+.tb-dropdown-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 100%;
+  height: 28px;
+  border: 1px solid var(--cell-border);
+  background: var(--cell-fill);
+  color: var(--label-hi);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.tb-dropdown-btn:hover {
+  border-color: var(--cell-border-hi);
+  background: var(--cell-hover);
+}
+.tb-dropdown.open .tb-dropdown-btn {
+  border-color: rgba(80, 150, 255, 0.72);
+  background: var(--cell-fill-2);
+}
+
+.tb-dropdown-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tb-dropdown-caret {
+  font-size: 8px;
+  flex-shrink: 0;
+  color: var(--label-dim);
+}
+
+.tb-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--cell-border);
+  background: rgba(60, 130, 255, 0.10);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  z-index: 200;
+  display: none;
+  box-shadow: 0 4px 24px rgba(0, 5, 25, 0.72), inset 0 0 16px rgba(80, 158, 255, 0.06);
+}
+
+.tb-dropdown.open .tb-dropdown-menu {
+  display: block;
+}
+
+.tb-dropdown-group {
+  padding: 7px 8px 5px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--label-dim);
+  border-top: 1px solid var(--sep);
+}
+.tb-dropdown-group:first-child {
+  border-top: none;
+}
+
+.tb-dropdown-option {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--label);
+  padding: 6px 8px;
+  cursor: pointer;
+  transition: background 0.10s, color 0.10s;
+}
+.tb-dropdown-option:hover {
+  background: var(--cell-hover);
+  color: var(--label-hi);
+}
+.tb-dropdown-option.active {
+  background: var(--cell-active);
+  color: var(--label-hi);
+}
+
+/* ── Number input (size) ─── */
+.tb-size-wrap {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  flex-shrink: 0;
+}
+.tb-size {
+  width: 46px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--cell-border);
+  color: var(--label-hi);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  padding: 2px 4px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.tb-size:focus { border-bottom-color: rgba(80, 158, 255, 0.78); }
+.tb-size::-webkit-inner-spin-button { display: none; }
+
+.tb-size-btn {
+  background: none;
+  border: none;
+  color: var(--label);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 3px;
+  line-height: 1;
+  transition: color 0.1s;
+}
+.tb-size-btn:hover { color: var(--label-hi); }
+
+/* ── Toggle buttons ─── */
+.tb-btns {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+.tb-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--label);
+  cursor: pointer;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+.tb-btn:hover {
+  background: var(--cell-hover);
+  border-color: var(--cell-border);
+  color: var(--label-hi);
+}
+.tb-btn.active {
+  background: var(--cell-active);
+  border-color: rgba(60, 128, 255, 0.60);
+  color: var(--label-hi);
+  box-shadow: inset 0 0 8px rgba(40, 105, 245, 0.18);
+}
+
+/* Italic / underline / strikethrough labels */
+.tb-btn[data-cmd="italic"]        { font-style: italic; }
+.tb-btn[data-cmd="underline"]     { text-decoration: underline; text-decoration-color: var(--label-dim); }
+.tb-btn[data-cmd="strikeThrough"] { text-decoration: line-through; text-decoration-color: var(--label-dim); }
+
+/* ── Align buttons ─── */
+.tb-align { font-size: 11px; }
+
+/* ── Color picker ─── */
+.tb-color-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  flex-shrink: 0;
+}
+.tb-color-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--cell-border-hi);
+  box-shadow: 0 0 0 1px rgba(40, 100, 225, 0.22), 0 0 6px rgba(50, 120, 255, 0.18);
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+}
+.tb-color-swatch input[type="color"] {
+  position: absolute;
+  inset: -4px;
+  opacity: 0;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+}
+.tb-color-preview {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+/* ── Line height ─── */
+.tb-lh {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  flex-shrink: 0;
+}
+.tb-lh-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--label);
+  cursor: pointer;
+  padding: 3px 5px;
+  font-size: 11px;
+  border-radius: 4px;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.tb-lh-btn:hover {
+  background: var(--cell-hover);
+  border-color: var(--cell-border);
+  color: var(--label-hi);
+}
+.tb-lh-btn.active {
+  background: var(--cell-active);
+  border-color: rgba(60, 128, 255, 0.60);
+  color: var(--label-hi);
+}
+
+/* ── Clear / Copy buttons ─── */
+.tb-actions {
+  display: none;
+  align-items: center;
+  margin-left: auto;
+  padding-right: 10px;
+  flex-shrink: 0;
+}
+.tb-action-btn {
+  background: var(--cell-fill);
+  border: 1px solid var(--cell-border);
+  color: var(--label);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-left: 6px;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.tb-action-btn:hover {
+  border-color: var(--cell-border-hi);
+  background: var(--cell-hover);
+  color: var(--label-hi);
+}
+.tb-action-btn.danger:hover {
+  border-color: rgba(100, 60, 230, 0.70);
+  background: rgba(70, 30, 180, 0.22);
+  color: rgba(185, 155, 255, 0.95);
+}
+
+/* ─── EDITOR AREA ────────────────────────────────────────────────── */
+#editor-wrap {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* Microscope-lens vignette */
+#editor-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 42%, transparent 48%, rgba(0, 4, 18, 0.62) 100%);
+  pointer-events: none;
+  z-index: 3;
+}
+
+#editor {
+  height: 100%;
+  padding: 64px 80px;
+  outline: none;
+  word-break: break-word;
+  caret-color: var(--caret);
+  line-height: 1.4;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+
+  /* ── Bacteria cell text rendering ──
+     Fill = near-invisible dark blue (cytoplasm on dark bg)
+     Stroke = bright blue membrane / cell wall               */
+  color: var(--text-fill);
+  -webkit-text-stroke: 1.1px var(--text-stroke);
+
+  /* ── Membrane vivante : le contour ondule en continu ── */
+  filter: url(#membrane);
+  will-change: filter;
+}
+
+/* ── Organic glyph base ── */
+.organic-glyph {
+  --glyph-drift-x: 0px;
+  --glyph-drift-y: 0px;
+  position: relative;
+  display: inline-block;
+  color: currentColor;
+  transform-origin: 50% 75%;
+  animation: glyph-grow 420ms cubic-bezier(0.16, 0.84, 0.23, 1) both;
+}
+
+/* inner bio-glow shimmer during spawn */
+.organic-glyph::after {
+  content: '';
+  position: absolute;
+  inset: 8% 4% 2% 4%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 50% 45%,
+    rgba(55, 140, 255, 0.30) 0%,
+    rgba(30, 90, 220, 0.14) 40%,
+    rgba(20, 65, 190, 0)    75%
+  );
+  opacity: 0;
+  transform: translate(var(--glyph-drift-x), var(--glyph-drift-y)) scale(0.6);
+  transform-origin: center;
+  animation: glyph-pixel-grow 420ms ease-out both;
+}
+
+/* nucleus dot */
+.organic-glyph::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 0.12em;
+  height: 0.12em;
+  border-radius: 48% 52% 58% 42%;
+  pointer-events: none;
+  background: rgba(68, 140, 255, 0.55);
+  opacity: 0;
+  filter: blur(0.5px);
+  transform: translate(-50%, -50%) scale(0.2);
+}
+
+/* ── Birth animation: solid → transparent (bacteria maturing) ── */
+@keyframes glyph-grow {
+  0% {
+    transform: translate(var(--glyph-drift-x), var(--glyph-drift-y)) scale(0.45);
+    color: rgba(62, 128, 252, 0.95);
+    text-shadow:
+      0 0 8px  rgba(85, 162, 255, 0.72),
+      0 0 18px rgba(50, 118, 245, 0.42);
+  }
+  55% {
+    transform: translate(calc(var(--glyph-drift-x) * 0.3), calc(var(--glyph-drift-y) * 0.3)) scale(1.04);
+    color: rgba(42, 100, 235, 0.48);
+    text-shadow: 0 0 5px rgba(72, 142, 255, 0.28);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+    color: currentColor;
+    text-shadow: none;
+  }
+}
+
+@keyframes glyph-pixel-grow {
+  0% {
+    opacity: 0.55;
+    transform: translate(var(--glyph-drift-x), var(--glyph-drift-y)) scale(0.25);
+  }
+  70% {
+    opacity: 0.22;
+    transform: translate(calc(var(--glyph-drift-x) * 0.2), calc(var(--glyph-drift-y) * 0.2)) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(0px, 0px) scale(1.25);
+  }
+}
+
+/* ── Decompose states ── */
+.organic-glyph.is-decomposed {
+  color: transparent !important;
+  -webkit-text-stroke-color: transparent !important;
+  text-shadow: none !important;
+  animation: none;
+}
+
+.organic-glyph.is-decomposing {
+  animation: glyph-bloom 430ms cubic-bezier(0.22, 0.78, 0.28, 1) forwards;
+}
+
+.organic-glyph.is-decomposing::before {
+  animation: glyph-core-bloom 430ms cubic-bezier(0.22, 0.78, 0.28, 1) forwards;
+}
+
+/* ── DLA stain particles — bioluminescent blue ── */
+.glyph-stain {
+  position: absolute;
+  left: calc(var(--stain-x, 0.5) * 100%);
+  top:  calc(var(--stain-y, 0.5) * 100%);
+  width:  calc(0.36em * var(--stain-size, 0.22));
+  height: calc(0.36em * var(--stain-size, 0.22));
+  border-radius: 48% 58% 42% 62%;
+  background: rgba(42, 115, 255, 0.88);
+  box-shadow:
+    0 0 0 1px rgba(78, 152, 255, var(--stain-tone, 0.18)),
+    0 0 4px rgba(50, 125, 255, calc(var(--stain-tone, 0.15) * 1.5));
+  opacity: 0;
+  filter: blur(calc(0.06px + var(--stain-tone, 0.15) * 0.8px));
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(var(--stain-rotate, 0deg)) skew(var(--stain-skew, 0deg)) scale(0.2);
+  transform-origin: center;
+  animation: stain-grow var(--stain-duration, 700ms) cubic-bezier(0.2, 0.8, 0.25, 1) var(--stain-delay, 0ms) forwards;
+}
+
+.organic-glyph.is-decomposing .glyph-stain {
+  animation-play-state: running;
+}
+
+@keyframes stain-grow {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--stain-rotate, 0deg)) skew(var(--stain-skew, 0deg)) scale(0.08);
+    border-radius: 42% 60% 38% 64%;
+  }
+  36% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(var(--stain-rotate, 0deg)) skew(var(--stain-skew, 0deg)) scale(0.86);
+    border-radius: 50% 56% 46% 60%;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--stain-rotate, 0deg)) skew(var(--stain-skew, 0deg)) scale(1.35);
+    border-radius: 58% 44% 62% 40%;
+  }
+}
+
+/* ── Deletion / dissolve bloom ── */
+@keyframes glyph-bloom {
+  0% {
+    color: currentColor;
+    transform: scale(1);
+    text-shadow: none;
+    filter: blur(0);
+  }
+  45% {
+    color: rgba(62, 128, 252, 0.82);
+    transform: scale(1.015);
+    text-shadow:
+      0 0 6px  rgba(85, 162, 255, 0.58),
+      0 0 14px rgba(50, 118, 245, 0.32);
+    filter: blur(0.08px);
+  }
+  100% {
+    color: rgba(62, 128, 252, 0);
+    transform: scale(1.02);
+    text-shadow:
+      0 0 10px rgba(85, 162, 255, 0.18),
+      0 0 22px rgba(50, 118, 245, 0.10);
+    filter: blur(0.18px);
+  }
+}
+
+@keyframes glyph-core-bloom {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.15);
+    border-radius: 40% 60% 47% 53%;
+  }
+  40% {
+    opacity: 0.7;
+    transform: translate(-50%, -50%) scale(1.05);
+    border-radius: 55% 45% 61% 39%;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.85);
+    border-radius: 36% 64% 42% 58%;
+  }
+}
+
+/* ── Hover corruption ── */
+.corrupting {
+  animation: organic-corrupt var(--corrupt-duration, 900ms) cubic-bezier(0.22, 0.78, 0.28, 1);
+  transform-origin: center;
+  will-change: transform, filter;
+}
+
+@keyframes organic-corrupt {
+  0% {
+    transform: none;
+    filter: none;
+  }
+  45% {
+    transform:
+      rotate(var(--corrupt-rot, 0deg))
+      skew(var(--corrupt-skew-x, 0deg), var(--corrupt-skew-y, 0deg))
+      scale(var(--corrupt-scale-x, 1), var(--corrupt-scale-y, 1));
+    filter: blur(0.2px) contrast(1.02) drop-shadow(0 0 3px rgba(55, 125, 255, 0.28));
+  }
+  100% {
+    transform: none;
+    filter: none;
+  }
+}
+
+/* ── Placeholder ── */
+#editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--placeholder);
+  -webkit-text-stroke: 0px;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* ── Scrollbar ── */
+#editor-wrap::-webkit-scrollbar { width: 6px; }
+#editor-wrap::-webkit-scrollbar-track { background: rgba(4, 12, 35, 0.60); }
+#editor-wrap::-webkit-scrollbar-thumb { background: rgba(28, 68, 180, 0.50); border-radius: 3px; }
+#editor-wrap::-webkit-scrollbar-thumb:hover { background: rgba(48, 98, 225, 0.72); }
+
+/* ─── STATUS BAR ─────────────────────────────────────────────────── */
+#statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: rgba(55, 120, 248, 0.09);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: var(--label-dim);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-top: 1px solid var(--cell-border);
+}
+
+.status-left, .status-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.status-right {
+  display: none;
+}
+
+.status-item span { color: var(--label); }
+
+/* ─── RESPONSIVE ─────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  #editor { padding: 32px 24px; }
+}
+
+/* ─── LOCAL FONTS ─────────────────────────────────────────────────── */
+/*
+@font-face {
+  font-family: "MaPolice";
+  src: url("/fonts/MaPolice-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+*/
+
+/* ── Grain (film) : calque de bruit fixe sur tout le site ─────────── */
+#grain {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;        /* ne bloque jamais les clics / la saisie */
+  mix-blend-mode: overlay;     /* se fond dans le fond sombre */
+  opacity: 0.45;               /* intensité choisie (0 = invisible, 1 = max) */
+  background-size: 170px 170px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='170' height='170'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+
+/* ── Forme metaball qui suit la souris ───────────────────────────── */
+#blob-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 500;                /* au-dessus du contenu, sous le grain */
+  pointer-events: none;        /* n'intercepte jamais la souris */
+  filter: url(#goo);           /* fusion gooey + ondulation */
+  mix-blend-mode: screen;      /* fondu : la forme se mêle au contenu */
+}
+.blob-dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  will-change: transform;
+}
