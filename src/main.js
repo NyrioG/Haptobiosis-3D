@@ -83,8 +83,21 @@ const hudHint = document.getElementById('hud-hint');
   const clock = new THREE.Clock();
   let elapsed = 0;
 
+  // résolution adaptative : si le frame time grimpe durablement, on réduit
+  // discrètement le pixel ratio (puis on le remonte dès que ça respire à nouveau)
+  const maxPixelRatio = Math.min(window.devicePixelRatio, 2);
+  const minPixelRatio = Math.min(maxPixelRatio, 1);
+  let pixelRatio = maxPixelRatio;
+  let slowFrames = 0;
+  let fastFrames = 0;
+
+  // HUD : n'écrire dans le DOM que si la valeur affichée change
+  let lastHudColonies = -1;
+  let lastHudMass = -1;
+
   function loop() {
-    const dt = Math.min(clock.getDelta(), 0.05);
+    const rawDt = clock.getDelta();
+    const dt = Math.min(rawDt, 0.05);
     elapsed += dt;
 
     machine.update(dt);
@@ -100,10 +113,39 @@ const hudHint = document.getElementById('hud-hint');
     }
 
     // HUD
-    hudColonies.textContent = String(field.count);
-    hudMass.textContent = field.massCache.toFixed(1);
+    if (field.count !== lastHudColonies) {
+      hudColonies.textContent = String(field.count);
+      lastHudColonies = field.count;
+    }
+    const massRounded = Math.round(field.massCache * 10) / 10;
+    if (massRounded !== lastHudMass) {
+      hudMass.textContent = massRounded.toFixed(1);
+      lastHudMass = massRounded;
+    }
 
     renderer.render(scene, camera);
+
+    // ajuste le pixel ratio si le frame time dévie durablement (>~33ms / <~18ms)
+    if (maxPixelRatio > minPixelRatio) {
+      if (rawDt > 0.033) {
+        slowFrames++; fastFrames = 0;
+        if (slowFrames > 30 && pixelRatio > minPixelRatio) {
+          pixelRatio = Math.max(minPixelRatio, pixelRatio - 0.25);
+          renderer.setPixelRatio(pixelRatio);
+          slowFrames = 0;
+        }
+      } else if (rawDt < 0.018) {
+        fastFrames++; slowFrames = 0;
+        if (fastFrames > 90 && pixelRatio < maxPixelRatio) {
+          pixelRatio = Math.min(maxPixelRatio, pixelRatio + 0.25);
+          renderer.setPixelRatio(pixelRatio);
+          fastFrames = 0;
+        }
+      } else {
+        slowFrames = 0; fastFrames = 0;
+      }
+    }
+
     requestAnimationFrame(loop);
   }
   loop();

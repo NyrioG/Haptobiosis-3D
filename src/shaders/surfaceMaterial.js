@@ -35,19 +35,20 @@ const noiseGLSL = /* glsl */`
   }
   float fbm(vec3 p){
     float a=0.5, s=0.0;
-    for(int i=0;i<5;i++){ s+=a*vnoise(p); p=p*2.02+vec3(11.3,7.7,3.1); a*=0.5; }
+    for(int i=0;i<4;i++){ s+=a*vnoise(p); p=p*2.02+vec3(11.3,7.7,3.1); a*=0.5; }
     return s;
   }
-  // bruit cellulaire (Worley) approx -> donne un grain "cellules" à l'intérieur
+  // bruit cellulaire (Worley) approx 2D -> donne un grain "cellules" à l'intérieur,
+  // pour un coût ~3x moindre que la version 3D (9 voisins au lieu de 27)
   float worley(vec3 p){
-    vec3 ip = floor(p); vec3 fp = fract(p);
+    vec2 p2 = p.xz;
+    vec2 ip = floor(p2); vec2 fp = fract(p2);
     float md = 1.0;
     for(int x=-1;x<=1;x++)
-    for(int y=-1;y<=1;y++)
-    for(int z=-1;z<=1;z++){
-      vec3 g = vec3(float(x),float(y),float(z));
-      vec3 o = hash3(ip+g);
-      vec3 r = g + o - fp;
+    for(int y=-1;y<=1;y++){
+      vec2 g = vec2(float(x),float(y));
+      vec2 o = hash3(vec3(ip+g, p.y)).xy;
+      vec2 r = g + o - fp;
       md = min(md, dot(r,r));
     }
     return sqrt(md);
@@ -143,9 +144,9 @@ export function createSurfaceMaterial(colonyTex) {
             float wob    = c2.a;
 
             vec3 rel = vWorldPos - c0.rgb;
-            float d = length(rel);
-            // élague tôt : au-delà de ~2x le rayon, aucune contribution possible
-            if (d > radius * 2.2) continue;
+            // élague tôt (sans sqrt) : au-delà de ~2x le rayon, aucune contribution possible
+            float cullR = radius * 2.2;
+            if (dot(rel, rel) > cullR * cullR) continue;
 
             // --- domain warping : on déforme l'espace pour des contours déchiquetés ---
             vec3 sp = vWorldPos * 6.0 + seed;
@@ -199,6 +200,9 @@ export function createSurfaceMaterial(colonyTex) {
             cover += body;
             float wet = 1.0 - smoothstep(0.0, 0.4, radial);
             coreSum += wet * t;
+
+            // pleinement couvert : les colonies suivantes ne changeraient plus le résultat visible
+            if (cover >= 0.999) break;
           }
 
           cover = clamp(cover, 0.0, 1.0);
