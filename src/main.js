@@ -5,6 +5,7 @@ import { CameraRig } from './scene/CameraRig.js';
 import { SurfaceSampler } from './scene/SurfaceSampler.js';
 import { ColonyField } from './growth/ColonyField.js';
 import { SporeField } from './growth/SporeField.js';
+import { ColonyEmberField } from './growth/ColonyEmberField.js';
 import { InputController } from './input/InputController.js';
 
 const canvas = document.getElementById('scene');
@@ -22,6 +23,8 @@ const hudHint = document.getElementById('hud-hint');
   attachSurfaceMaterial(field.tex);
   const spores = new SporeField();
   scene.add(spores.points);
+  const embers = new ColonyEmberField();
+  scene.add(embers.points);
 
   const sampler = new SurfaceSampler(keyboard);
   sampler.refresh();
@@ -103,6 +106,7 @@ const hudHint = document.getElementById('hud-hint');
     machine.update(dt);
     field.update(dt);
     spores.update(dt, elapsed);
+    embers.update(dt, field);
     rig.update(dt, machine.phase);
 
     // uniforms du shader de surface

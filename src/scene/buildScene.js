@@ -67,7 +67,8 @@ export async function buildScene(canvas) {
   return { renderer, scene, camera, group, keyboard, attachSurfaceMaterial, pmrem };
 
   function attachSurfaceMaterial(colonyTex) {
-    surfaceMat = createSurfaceMaterial(colonyTex);
+    const bounds = new THREE.Box3().setFromObject(keyboard);
+    surfaceMat = createSurfaceMaterial(colonyTex, bounds);
     keyboard.material = surfaceMat;
     return surfaceMat;
   }

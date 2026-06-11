@@ -72,18 +72,28 @@ const paletteGLSL = /* glsl */`
   }
 `;
 
-export function createSurfaceMaterial(colonyTex) {
+export function createSurfaceMaterial(colonyTex, bounds) {
   const mat = new THREE.MeshStandardMaterial({
     color: 0x0a0d12,
     roughness: 0.88,
     metalness: 0.0,
   });
 
+  // limites du clavier (XZ) : sert à estomper les colonies avant qu'elles
+  // ne dépassent sur les rebords du mesh.
+  const min = bounds ? bounds.min : new THREE.Vector3(-1e6, -1e6, -1e6);
+  const max = bounds ? bounds.max : new THREE.Vector3(1e6, 1e6, 1e6);
+  const marginX = bounds ? (max.x - min.x) * 0.05 : 0;
+  const marginZ = bounds ? (max.z - min.z) * 0.05 : 0;
+
   mat.userData.uniforms = {
     uColonies: { value: colonyTex },
     uCount: { value: 0 },
     uTime: { value: 0 },
     uMax: { value: MAX_COLONIES },
+    uBoundsMin: { value: min.clone() },
+    uBoundsMax: { value: max.clone() },
+    uEdgeMargin: { value: new THREE.Vector2(marginX, marginZ) },
   };
 
   // coords y des 3 lignes de la texture de données (hauteur = ROWS)
@@ -115,6 +125,9 @@ export function createSurfaceMaterial(colonyTex) {
         uniform int uCount;
         uniform int uMax;
         uniform float uTime;
+        uniform vec3 uBoundsMin;
+        uniform vec3 uBoundsMax;
+        uniform vec2 uEdgeMargin;
         ${noiseGLSL}
         ${paletteGLSL}
       `)
@@ -127,7 +140,15 @@ export function createSurfaceMaterial(colonyTex) {
           float cover = 0.0;
           float coreSum = 0.0;
 
+          // estompe les colonies avant les rebords du clavier (sans sqrt, par fragment)
+          float edgeFade =
+            smoothstep(uBoundsMin.x, uBoundsMin.x + uEdgeMargin.x, vWorldPos.x) *
+            smoothstep(uBoundsMax.x, uBoundsMax.x - uEdgeMargin.x, vWorldPos.x) *
+            smoothstep(uBoundsMin.z, uBoundsMin.z + uEdgeMargin.y, vWorldPos.z) *
+            smoothstep(uBoundsMax.z, uBoundsMax.z - uEdgeMargin.y, vWorldPos.z);
+
           for (int i = 0; i < ${MAX_COLONIES}; i++) {
+            if (edgeFade <= 0.0) break;
             if (i >= uCount) break;
             float fx = (float(i) + 0.5) * texelW;
             vec4 c0 = texture2D(uColonies, vec2(fx, ${ROW0.toFixed(5)})); // pos.xyz, radius
@@ -163,11 +184,19 @@ export function createSurfaceMaterial(colonyTex) {
             float aniso = 1.0 + aAmt * along;                    // rayon effectif modulé
             float rEff = radius * aniso;
 
+            // --- tentacules : franges fines qui s'étirent dans certaines directions
+            // et ondulent doucement dans le temps ---
+            float tendrilAngle = atan(wpos.z, wpos.x);
+            float tendrilN = vnoise(vec3(cos(tendrilAngle) * 2.5, sin(tendrilAngle) * 2.5, seed * 0.3 + uTime * 0.12));
+            float tendril = smoothstep(0.5, 0.85, tendrilN) * wob;
+            rEff *= 1.0 + tendril * 0.45;
+
             float dl = length(wpos);
 
             // bord plus net + contour : on garde un liseré marqué
             float edge0 = rEff * 0.97;
             float t = 1.0 - smoothstep(edge0, rEff, dl);
+            t *= edgeFade;
             if (t <= 0.0) continue;
             // anneau de contour sombre juste avant le bord
             float outline = smoothstep(rEff * 0.80, rEff * 0.95, dl) * (1.0 - smoothstep(rEff * 0.95, rEff, dl));
